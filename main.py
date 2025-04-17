@@ -119,17 +119,27 @@ def create_datamodule(config):
         def __init__(self, config):
             super().__init__()
             self.config = config
+            self.val_datasets = []
             
         def setup(self, stage=None):
             # Build datasets
             if stage == 'fit' or stage is None:
                 train_config = self.config['datasets']['train']
                 train_config['phase'] = 'train'
-                val_config = self.config['datasets']['val']
-                val_config['phase'] = 'val'
-                
                 self.train_dataset = build_dataset(train_config)
-                self.val_dataset = build_dataset(val_config)
+                
+                # 创建所有验证数据集
+                self.val_datasets = []
+                if 'val_datasets' in self.config['datasets']:
+                    for val_idx, val_config in enumerate(self.config['datasets']['val_datasets']):
+                        val_config['phase'] = 'val'
+                        val_dataset = build_dataset(val_config)
+                        self.val_datasets.append(val_dataset)
+                else:  # 兼容旧配置
+                    val_config = self.config['datasets'].get('val', {})
+                    val_config['phase'] = 'val'
+                    val_dataset = build_dataset(val_config)
+                    self.val_datasets.append(val_dataset)
             
             if stage == 'test' or stage is None:
                 test_config = self.config['datasets']['test']
@@ -154,20 +164,31 @@ def create_datamodule(config):
             )
             
         def val_dataloader(self):
-            return build_dataloader(
-                self.val_dataset,
-                self.config['datasets']['val'],
-                num_gpu=1,  # 验证通常是每个GPU一个样本
-                dist=False  # 验证通常不需要分布式采样
-            )
+            # 返回多个验证数据集的数据加载器列表
+            val_loaders = []
             
-        def test_dataloader(self):
-            return build_dataloader(
-                self.test_dataset,
-                self.config['datasets']['test'],
-                num_gpu=1,  # 测试通常是每个GPU一个样本
-                dist=False  # 测试通常不需要分布式采样
-            )
+            if 'val_datasets' in self.config['datasets']:
+                # 使用新配置格式：多个验证数据集列表
+                for val_idx, val_dataset in enumerate(self.val_datasets):
+                    val_config = self.config['datasets']['val_datasets'][val_idx]
+                    val_loaders.append(build_dataloader(
+                        val_dataset,
+                        val_config,
+                        num_gpu=1,
+                        dist=False
+                    ))
+            elif self.val_datasets:
+                # 兼容旧配置：单个验证数据集
+                val_config = self.config['datasets'].get('val', {})
+                val_loaders.append(build_dataloader(
+                    self.val_datasets[0],
+                    val_config,
+                    num_gpu=1,
+                    dist=False
+                ))
+            
+            return val_loaders
+
     
     return ReflectionDataModule(config)
 
@@ -362,20 +383,21 @@ def main():
     # Test only or train + validate
     if config.get('test_only', False):
         if trainer.is_global_zero:
-            print("Running test only")
-        trainer.test(model, datamodule=datamodule, ckpt_path=resume_path)
+            print("Running validation datasets evaluation only")
+        # 使用验证数据集进行评估而非测试数据集
+        trainer.validate(model, datamodule=datamodule, ckpt_path=resume_path)
     else:
         if trainer.is_global_zero:
             print("Running training and validation")
         trainer.fit(model, datamodule=datamodule, ckpt_path=resume_path)
             
-        # Test after training using the best model
+        # Evaluate on validation datasets after training using the best model
         if len(callbacks) > 0 and hasattr(callbacks[0], 'best_model_path'):
             best_model_path = callbacks[0].best_model_path
             if best_model_path:
                 if trainer.is_global_zero:
-                    print(f"Testing with best model: {best_model_path}")
-                trainer.test(model, datamodule=datamodule, ckpt_path=best_model_path)
+                    print(f"Evaluating best model on validation datasets: {best_model_path}")
+                trainer.validate(model, datamodule=datamodule, ckpt_path=best_model_path)
                 
         # Close WandB logger to ensure logs are saved
         if wandb_config.get('enable', False):
