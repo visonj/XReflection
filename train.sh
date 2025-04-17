@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=3,4 python main.py --config options/train_lightning.yml
