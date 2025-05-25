@@ -227,7 +227,6 @@ class RDNet(nn.Module):
         }
 
     def forward(self, x_in, prompt=True):
-        # 2 3 224 224
         with torch.autocast(enabled=True, device_type='cuda'):
             x_cls_out = []
             x_img_out = []
@@ -247,16 +246,10 @@ class RDNet(nn.Module):
                 prompt = self.classifier(x_in)
             prompt = self.prompt(prompt)
             x = prompt * x_stem
-
-            # x=torch.cat([x,x],dim=-3)
             for i in range(self.num_subnet):
                 c0, c1, c2, c3 = getattr(self, f'subnet{str(i)}')(x, c0, c1, c2, c3)
                 if i > (self.num_subnet - self.Loss_col):
                     x_img_out.append(torch.cat([x_in, x_in], dim=-3) - self.decoder_blocks(c3, c2, c1, c0))
-                # if (i + 1) % interval == 0:
-                #     if i == self.num_subnet - 1:
-                #         x_img_out.append(self.decoder_blocks[-1](c3, c2, c1, c0))
-
             return x_cls_out, x_img_out
 
     def _init_weights(self, module):

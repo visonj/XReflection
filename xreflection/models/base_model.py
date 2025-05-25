@@ -430,12 +430,15 @@ class BaseModel(L.LightningModule):
         """Operations at the end of validation epoch."""
         # Calculate and log average metrics across all validation samples
         if self.current_val_metrics and self.trainer.is_global_zero:
+            total_average_metrics = {}
+            
             for dataset_name, metrics in self.current_val_metrics.items():
                 log_str = f'Validation [{dataset_name}] Epoch {self.current_epoch}\n'
 
                 self._initialize_best_metric_results(dataset_name)
 
                 for metric_name, values in metrics.items():
+                    
                     avg_value = sum(values) / len(values)
                     log_str += f'\t # {metric_name}: {avg_value:.4f}'
 
@@ -449,11 +452,24 @@ class BaseModel(L.LightningModule):
                     self.logger.experiment.add_scalar(
                         f'metrics/{dataset_name}/{metric_name}', avg_value, self.current_epoch
                     )
-
+                    if metric_name not in total_average_metrics.keys():
+                        total_average_metrics[metric_name] = {
+                            'val': sum(values),
+                            'counts' : len(values)
+                        }
+                    else:
+                        total_average_metrics[metric_name]['val'] += sum(values)
+                        total_average_metrics[metric_name]['counts'] += len(values)
                 # Log to console
                 rank_zero_info(log_str)
-            
-            # 不再需要在这里更新检查点监视指标，因为已经在validation_step为第一个数据集单独记录了
+            total_average_metrics = {
+                k: v['val'] / v['counts'] for k, v in total_average_metrics.items()
+            }
+
+            log_str = f'Validation Epoch {self.current_epoch} Average Metrics:\n'
+            for metric_name, metric_value in total_average_metrics.items():
+                log_str += f'\t # {metric_name}: {metric_value:.4f}\n'
+            rank_zero_info(log_str)
 
     def test_step(self, batch, batch_idx):
         """Test step.
@@ -482,7 +498,7 @@ class BaseModel(L.LightningModule):
             dict: Optimizer and scheduler configuration.
         """
         train_opt = self.opt['train']
-        optimizer = self.get_optimizer(self.configure_optimizer_params())
+        optimizer = self.get_optimizer(**self.configure_optimizer_params())
 
         # Setup learning rate scheduler without modifying original config
         scheduler_type = train_opt['scheduler']['type']
@@ -538,24 +554,6 @@ class BaseModel(L.LightningModule):
             raise NotImplementedError(f'optimizer {optim_type} is not supported yet.')
         return optimizer
 
-    def calculate_weighted_loss(self, loss_list):
-        """Calculate weighted loss.
-        
-        Args:
-            loss_list (list): List of losses at different scales.
-            
-        Returns:
-            torch.Tensor: Weighted loss.
-        """
-        if not loss_list:
-            return 0
-        weights = [0.25, 0.5, 0.75, 1.0]
-        # Make sure we have enough weights
-        while len(weights) < len(loss_list):
-            weights.append(1.0)
-        # Trim weights if we have too many
-        weights = weights[:len(loss_list)]
-        return sum(w * loss for w, loss in zip(weights, loss_list))
 
     def on_save_checkpoint(self, checkpoint):
         """Operations when saving checkpoint.

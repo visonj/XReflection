@@ -344,7 +344,8 @@ def main():
         'val_check_interval': config.get('val_check_interval', 1.0),
         'gradient_clip_val': config['lightning'].get('gradient_clip_val', 0),
         'accumulate_grad_batches': config['lightning'].get('accumulate_grad_batches', 1),
-        'deterministic': config['lightning'].get('deterministic', True),
+        'deterministic': config['lightning'].get('deterministic', False),
+        'strategy': "deepspeed_stage_1",
     }
     
     # Add strategy for distributed training if specified
