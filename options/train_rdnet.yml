@@ -1,7 +1,7 @@
 # general settings
-name: train_sirs_lightning
+name: train_sirs_rdnet
 is_train: true
-model_type: ClsModel  # Use Lightning module instead of vanilla model
+model_type: RDNetModel  # Use Lightning module instead of vanilla model
 num_gpu: auto  # auto: can infer from your visible devices automatically
 manual_seed: 42
 
@@ -30,17 +30,10 @@ checkpoint:
   save_top_k: 10
   save_last: true
 
-# optional early stopping
-early_stopping:
-  monitor: 'val/psnr/dataloader_idx_0'  # 恢复到原来的val/psnr格式
-  patience: 100
-  mode: 'max'
-  min_delta: 0.01
-
 # dataset and data loader settings
 datasets:
   train:
-    name: NTIRE
+    name: Real 
     type: DSRTestDataset
     datadir: /mnt/hugedisk/whn/datasets/NTIRE2025_Challenge_SIRR/train_800
     fns: null
@@ -104,31 +97,9 @@ datasets:
       num_worker_per_gpu: 4
       batch_size_per_gpu: 1
 
-  # 保留原有验证数据集配置以保持兼容性
-  val:
-    name: NTIRE
-    type: DSRTestDataset
-    mode: eval
-    datadir: /mnt/hugedisk/whn/datasets/ntire2025/test
-    inp_path: /opt/datasets/ntire2025/test/transmission_layer
-    fns: null
-    size: null
-    enable_transforms: False
-    unaligned_transforms: False
-    round_factor: 1
-    flag: null
-    if_align: True
-    io_backend:
-      type: disk
-    
-    # data loader for validation
-    use_shuffle: false
-    num_worker_per_gpu: 4
-    batch_size_per_gpu: 1
-
 # network structures
 network_g:
-  type: FullNet_NLP
+  type: RDNet
   channels: [64, 128, 256, 512]
   layers: [2, 2, 4, 2]
   num_subnet: 4
@@ -139,6 +110,9 @@ network_g:
   inter_supv: True
   head_init_scale: null
   kernel_size: 3
+  pretrained_models:
+    cls_model: cls_model.pth
+    base_network: focal.pth
 
 # path
 path:

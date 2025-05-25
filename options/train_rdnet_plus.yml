@@ -1,0 +1,214 @@
+# general settings
+name: train_sirs_lightning
+is_train: true
+model_type: ClsModel  # Use Lightning module instead of vanilla model
+num_gpu: auto  # auto: can infer from your visible devices automatically
+manual_seed: 42
+
+# Command line options integrated into config
+test_only: false          # Whether to only test the model
+resume: null              # Path to resume checkpoint, null for no resume
+precision: '32-true'      # Precision for training (32-true, 16-mixed, bf16-mixed)
+accelerator: 'auto'       # Accelerator type (auto, gpu, cpu)
+val_check_interval: 1.0   # Validation check interval
+log_every_n_steps: 50     # Log every n steps
+
+# Lightning specific settings
+lightning:
+  max_epochs: 500
+  gradient_clip_val: null
+  accumulate_grad_batches: 1
+  deterministic: true
+  strategy: 'ddp'  # Strategy for distributed training
+  profiler: 'simple'  # Options: null, 'simple', 'advanced' - enable profiling for performance analysis
+  num_sanity_val_steps: 2  # Number of validation steps to run before starting training
+
+# checkpoint settings
+checkpoint:
+  monitor: 'val/psnr/dataloader_idx_0'  # 恢复到原来的val/psnr格式
+  mode: 'max'  # 'max' for psnr, 'min' for loss
+  save_top_k: 10
+  save_last: true
+
+# dataset and data loader settings
+datasets:
+  train:
+    name: NTIRE
+    type: DSRTestDataset
+    datadir: /mnt/hugedisk/whn/datasets/NTIRE2025_Challenge_SIRR/train_800
+    fns: null
+    size: null
+    enable_transforms: True
+    unaligned_transforms: False
+    round_factor: 1
+    flag: null
+    if_align: True
+    io_backend:
+      type: disk
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 16
+    batch_size_per_gpu: 2
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  # 多个验证数据集配置，使用列表形式
+  val_datasets:
+    # 第一个验证数据集
+    - name: NTIRE
+      type: DSRTestDataset
+      mode: eval
+      datadir: /mnt/hugedisk/whn/datasets/ntire2025/test
+      inp_path: /opt/datasets/ntire2025/test/transmission_layer
+      fns: null
+      size: null
+      enable_transforms: False
+      unaligned_transforms: False
+      round_factor: 1
+      flag: null
+      if_align: True
+      io_backend:
+        type: disk
+      
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+    
+    # 第二个验证数据集
+    - name: NTIRE2
+      type: DSRTestDataset
+      mode: eval
+      datadir: /mnt/hugedisk/whn/datasets/ntire2025/test
+      inp_path: /opt/datasets/ntire2025/test/transmission_layer
+      fns: null
+      size: null
+      enable_transforms: False
+      unaligned_transforms: False
+      round_factor: 1
+      flag: null
+      if_align: True
+      io_backend:
+        type: disk
+      
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+
+  # 保留原有验证数据集配置以保持兼容性
+  val:
+    name: NTIRE
+    type: DSRTestDataset
+    mode: eval
+    datadir: /mnt/hugedisk/whn/datasets/ntire2025/test
+    inp_path: /opt/datasets/ntire2025/test/transmission_layer
+    fns: null
+    size: null
+    enable_transforms: False
+    unaligned_transforms: False
+    round_factor: 1
+    flag: null
+    if_align: True
+    io_backend:
+      type: disk
+    
+    # data loader for validation
+    use_shuffle: false
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 1
+
+# network structures
+network_g:
+  type: FullNet_NLP
+  channels: [64, 128, 256, 512]
+  layers: [2, 2, 4, 2]
+  num_subnet: 4
+  loss_col: 4
+  num_classes: 1000
+  drop_path: 0
+  save_memory: True
+  inter_supv: True
+  head_init_scale: null
+  kernel_size: 3
+
+# path
+path:
+  pretrain_network_g: ~
+  param_key_g: params
+  strict_load_g: True
+  resume_state: ~
+  experiments_root: experiments  # Root directory for all experiments
+  visualization: ~  # Will be set dynamically in main.py
+  models: ~  # Will be set dynamically in main.py
+  log: ~  # Will be set dynamically in main.py
+
+# training settings
+train:
+  ema_decay: -1
+  ema_update_interval: -1  # How often to update EMA model weights (in batches)
+  optim_g:
+    type: AdamW  # Using AdamW which is common in Lightning
+    baseball_lr: !!float 2e-4  # Learning rate for baseball parameters
+    other_lr: !!float 1e-4     # Learning rate for other parameters
+    weight_decay: !!float 1e-4
+    betas: [0.9, 0.99]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [150, 300, 450]
+    gamma: 0.5
+
+  max_epochs: 500
+  warmup_epochs: -1  # Warm up epochs
+
+  # losses
+  pixel_opt:
+    type: MSELoss
+    loss_weight: 1.0
+    reduction: mean
+    
+  # perceptual loss (content and style losses)
+  perceptual_opt:
+    type: PerceptualLoss
+    layer_weights:
+      # before relu
+      'conv1_2': 0.1
+      'conv2_2': 0.1
+      'conv3_4': 1
+      'conv4_4': 1
+      'conv5_4': 1
+    vgg_type: vgg19
+    use_input_norm: true
+    perceptual_weight: !!float 1.0
+    style_weight: 0.0
+    range_norm: false
+    criterion: l1
+    
+  grad_opt:
+    type: GradientLoss
+    loss_weight: 10
+
+# validation settings
+val:
+  save_img: True
+  
+  metrics:
+    psnr:  # metric name
+      type: calculate_psnr
+      crop_border: 4
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 4
+      test_y_channel: false
+
+# logging settings
+logger:
+  tensorboard:
+    flush_secs: 5
+    max_queue: 10
+  wandb:
+    enable: true
+    project: xreflection

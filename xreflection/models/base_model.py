@@ -5,7 +5,6 @@ from os import path as osp
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 from xreflection.utils.registry import MODEL_REGISTRY
-from xreflection import build_network, build_loss
 from xreflection.metrics import calculate_metric
 from xreflection.utils import imwrite, tensor2img
 from lightning.pytorch.utilities import rank_zero_only, rank_zero_info, rank_zero_warn
@@ -13,7 +12,7 @@ from torchmetrics import MetricCollection
 
 
 @MODEL_REGISTRY.register()
-class ClsModel(L.LightningModule):
+class BaseModel(L.LightningModule):
     """Classification Module for reflection removal using PyTorch Lightning.
     
     This module implements a classification-based approach for single image reflection removal.
@@ -27,6 +26,7 @@ class ClsModel(L.LightningModule):
         Args:
             opt (dict): Configuration options.
         """
+        from xreflection.archs import build_network
         super().__init__()
         self.save_hyperparameters()
         self.opt = opt
@@ -35,12 +35,6 @@ class ClsModel(L.LightningModule):
         # Define network
         self.net_g = build_network(opt['network_g'])
 
-        # Losses (initialized in setup)
-        self.cri_pix = None
-        self.cri_perceptual = None
-        self.cri_grad = None
-
-        # Initialize metric tracking
         self.best_metric_results = {}
         self.current_val_metrics = {}
 
@@ -111,6 +105,11 @@ class ClsModel(L.LightningModule):
             if self.trainer is None or self.trainer.global_rank == 0:
                 rank_zero_info(f"No recognized parameter keys found, using entire checkpoint")
 
+        # Remove the prefix for torch.compile
+        for k, v in list(weights.items()):
+            if k.startswith('_orig_mod.'):
+                weights[k[10:]] = weights.pop(k)
+
         # Remove unnecessary 'module.' prefix
         for k, v in list(weights.items()):
             if k.startswith('module.'):
@@ -151,18 +150,7 @@ class ClsModel(L.LightningModule):
                     load_net[k + '.ignore'] = load_net.pop(k)
 
     def setup_losses(self):
-        """Setup loss functions"""
-        if not hasattr(self, 'cri_pix') or self.cri_pix is None:
-            if self.opt['train'].get('pixel_opt'):
-                self.cri_pix = build_loss(self.opt['train']['pixel_opt'])
-
-        if not hasattr(self, 'cri_perceptual') or self.cri_perceptual is None:
-            if self.opt['train'].get('perceptual_opt'):
-                self.cri_perceptual = build_loss(self.opt['train']['perceptual_opt'])
-
-        if not hasattr(self, 'cri_grad') or self.cri_grad is None:
-            if self.opt['train'].get('grad_opt'):
-                self.cri_grad = build_loss(self.opt['train']['grad_opt'])
+        pass
 
     def forward(self, x):
         """Forward pass.
@@ -176,73 +164,8 @@ class ClsModel(L.LightningModule):
         return self.net_g(x)
 
     def training_step(self, batch, batch_idx):
-        """Training step.
-        
-        Args:
-            batch (dict): Input batch containing 'input', 'target_t', 'target_r'.
-            batch_idx (int): Batch index.
-            
-        Returns:
-            torch.Tensor: Total loss.
-        """
-        # Get inputs
-        inp = batch['input']
-        target_t = batch['target_t']
-        target_r = batch['target_r']
-
-        # Forward pass
-        x_cls_out, x_img_out = self.net_g(inp)
-        output_clean, output_reflection = x_img_out[-1][:, :3, ...], x_img_out[-1][:, 3:, ...]
-
-        # Calculate losses
-        loss_dict = OrderedDict()
-        pix_t_loss_list = []
-        pix_r_loss_list = []
-        per_loss_list = []
-        grad_loss_list = []
-
-        for i, out_imgs in enumerate(x_img_out):
-            out_t, out_r = out_imgs[:, :3, ...], out_imgs[:, 3:, ...]
-            # Pixel loss
-            l_g_pix_t = self.cri_pix(out_t, target_t)
-            pix_t_loss_list.append(l_g_pix_t)
-            l_g_pix_r = self.cri_pix(out_r, target_r)
-            pix_r_loss_list.append(l_g_pix_r)
-
-            # Perceptual loss
-            l_g_percep_t, _ = self.cri_perceptual(out_t, target_t)
-            if l_g_percep_t is not None:
-                per_loss_list.append(l_g_percep_t)
-
-            # Gradient loss
-            l_g_grad = self.cri_grad(out_t, target_t)
-            grad_loss_list.append(l_g_grad)
-
-        # Apply weights to losses
-        l_g_pix_t = self.calculate_weighted_loss(pix_t_loss_list)
-        l_g_pix_r = self.calculate_weighted_loss(pix_r_loss_list)
-        l_g_percep_t = self.calculate_weighted_loss(per_loss_list)
-        l_g_grad = self.calculate_weighted_loss(grad_loss_list)
-
-        # Total loss
-        loss_dict['l_g_pix_t'] = l_g_pix_t
-        loss_dict['l_g_pix_r'] = l_g_pix_r
-        loss_dict['l_g_percep_t'] = l_g_percep_t
-        loss_dict['l_g_grad'] = l_g_grad
-        l_g_total = l_g_pix_t + l_g_pix_r + l_g_percep_t + l_g_grad
-
-        # Log losses
-        for name, value in loss_dict.items():
-            self.log(f'train/{name}', value, prog_bar=True, sync_dist=True)
-
-        # Store outputs for visualization
-        self.last_inp = inp
-        self.last_output_clean = output_clean
-        self.last_output_reflection = output_reflection
-        self.last_target_t = target_t
-
-        return l_g_total
-
+        pass
+    
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """验证步骤。
         
@@ -544,6 +467,14 @@ class ClsModel(L.LightningModule):
         """
         return self.validation_step(batch, batch_idx)
 
+    def configure_optimizer_params(self):
+        """Configure optimizer parameters.
+        
+        Returns:
+            list: List of parameter groups.
+        """
+        pass
+
     def configure_optimizers(self):
         """Configure optimizers and learning rate schedulers.
         
@@ -551,20 +482,7 @@ class ClsModel(L.LightningModule):
             dict: Optimizer and scheduler configuration.
         """
         train_opt = self.opt['train']
-
-        # Setup different parameter groups with their learning rates
-        params_lr = [
-            {'params': self.net_g.get_baseball_params(), 'lr': train_opt['optim_g']['baseball_lr']},
-            {'params': self.net_g.get_other_params(), 'lr': train_opt['optim_g']['other_lr']},
-        ]
-
-        # Get optimizer configuration without modifying original config
-        optim_type = train_opt['optim_g']['type']
-        optim_config = {k: v for k, v in train_opt['optim_g'].items()
-                        if k not in ['type', 'baseball_lr', 'other_lr']}
-
-        # Create optimizer
-        optimizer = self.get_optimizer(optim_type, params_lr, **optim_config)
+        optimizer = self.get_optimizer(self.configure_optimizer_params())
 
         # Setup learning rate scheduler without modifying original config
         scheduler_type = train_opt['scheduler']['type']
