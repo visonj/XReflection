@@ -218,41 +218,14 @@ class BaseModel(L.LightningModule):
 
 
         # 保存验证图像
-        if self.trainer.is_global_zero and self.opt['val'].get('save_img', False):
-            try:
-                current_iter = self.current_epoch if self.trainer.sanity_checking else self.global_step
-
-                # 创建保存图像的路径
-                if self.opt['is_train']:
-                    # 在训练过程中保存图像，添加数据集名称到路径
-                    save_dir = osp.join(self.opt['path']['visualization'], dataset_name, img_name)
-                    os.makedirs(save_dir, exist_ok=True)
-                    save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{current_iter}.png')
-                    save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{current_iter}.png')
-                else:
-                    # 在测试过程中保存图像
-                    save_dir = osp.join(self.opt['path']['visualization'], dataset_name)
-                    os.makedirs(save_dir, exist_ok=True)
-                    if self.opt['val'].get('suffix'):
-                        save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{self.opt["val"]["suffix"]}.png')
-                        save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{self.opt["val"]["suffix"]}.png')
-                    else:
-                        save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{self.opt["name"]}.png')
-                        save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{self.opt["name"]}.png')
-
-                # 保存图像
-                imwrite(clean_img, save_clean_img_path)
-                imwrite(reflection_img, save_reflection_img_path)
-            except Exception as e:
-                rank_zero_warn(f"Error saving validation images: {str(e)}")
+        if self.opt['val'].get('save_img', False):
+            self._save_images(clean_img, reflection_img, img_name, dataset_name)
 
         # 计算指标
         if 'img2' in metric_data and self.opt['val'].get('metrics') is not None:
             for name, opt_ in self.opt['val']['metrics'].items():
                 try:
                     metric_value = calculate_metric(metric_data, opt_)
-                    # 使用数据集命名空间记录指标
-                    # self.log(f'{dataset_name}/{name}', metric_value, sync_dist=True, add_dataloader_idx=False)
                     # 存储以供后续聚合
                     if dataset_name not in self.current_val_metrics:
                         self.current_val_metrics[dataset_name] = {}
@@ -415,36 +388,20 @@ class BaseModel(L.LightningModule):
         else:
             raise NotImplementedError(f'optimizer {optim_type} is not supported yet.')
         return optimizer
-
-    def get_current_visuals(self):
-        """获取当前可视化用于展示和比较的张量。
-        
-        Returns:
-            OrderedDict: 当前可视张量的字典。
-        """
-        out_dict = OrderedDict()
-        
-        # 训练可视化
-        if hasattr(self, 'last_inp'):
-            out_dict['inp'] = self.last_inp.detach().cpu()
-        if hasattr(self, 'last_output_clean'):
-            out_dict['result_clean'] = self.last_output_clean.detach().cpu()
-        if hasattr(self, 'last_output_reflection'):
-            out_dict['result_reflection'] = self.last_output_reflection.detach().cpu()
-        if hasattr(self, 'last_target_t'):
-            out_dict['target_t'] = self.last_target_t.detach().cpu()
-
-        # 添加所有验证数据集的可视化结果
-        if hasattr(self, 'val_visualization'):
-            for dataset_name, visuals in self.val_visualization.items():
-                # 为每个数据集添加前缀，避免名称冲突
-                prefix = dataset_name.replace(' ', '_')
-                
-                # 添加该数据集的所有可视化结果
-                out_dict[f'{prefix}_inp'] = visuals['inp'].detach().cpu()
-                out_dict[f'{prefix}_result_clean'] = visuals['output_clean'].detach().cpu()
-                out_dict[f'{prefix}_result_reflection'] = visuals['output_reflection'].detach().cpu()
-                if 'target_t' in visuals:
-                    out_dict[f'{prefix}_target_t'] = visuals['target_t'].detach().cpu()
-
-        return out_dict
+    
+    def _save_images(self, clean_img, reflection_img, img_name, dataset_name):
+        try:
+        # 在测试过程中保存图像
+            save_dir = osp.join(self.opt['path']['visualization'], dataset_name, img_name)
+            os.makedirs(save_dir, exist_ok=True)
+            if self.opt['val'].get('suffix'):
+                save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{self.opt["val"]["suffix"]}_epoch_{self.current_epoch}.png')
+                save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{self.opt["val"]["suffix"]}_epoch_{self.current_epoch}.png')
+            else:
+                save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{self.opt["name"]}_epoch_{self.current_epoch}.png')
+                save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{self.opt["name"]}_epoch_{self.current_epoch}.png')
+            # 保存图像
+            imwrite(clean_img, save_clean_img_path)
+            imwrite(reflection_img, save_reflection_img_path)
+        except Exception as e:
+            rank_zero_warn(f"Error saving validation images: {str(e)}")
