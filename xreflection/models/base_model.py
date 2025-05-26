@@ -431,7 +431,6 @@ class BaseModel(L.LightningModule):
         # Calculate and log average metrics across all validation samples
         if self.current_val_metrics and self.trainer.is_global_zero:
             total_average_metrics = {}
-            
             for dataset_name, metrics in self.current_val_metrics.items():
                 log_str = f'Validation [{dataset_name}] Epoch {self.current_epoch}\n'
 
@@ -453,6 +452,7 @@ class BaseModel(L.LightningModule):
                         f'metrics/{dataset_name}/{metric_name}', avg_value, self.current_epoch
                     )
                     if metric_name not in total_average_metrics.keys():
+                        self._initialize_best_metric_results(f"average/{metric_name}")
                         total_average_metrics[metric_name] = {
                             'val': sum(values),
                             'counts' : len(values)
@@ -465,7 +465,12 @@ class BaseModel(L.LightningModule):
             total_average_metrics = {
                 k: v['val'] / v['counts'] for k, v in total_average_metrics.items()
             }
-
+            for metric_name, metric_value in total_average_metrics.items():
+                self._update_best_metric_result(f"average/{metric_name}", metric_name, metric_value, self.current_epoch)
+                self.logger.experiment.add_scalar(
+                    f'metrics/average/{metric_name}', metric_value, self.current_epoch
+                )
+            
             log_str = f'Validation Epoch {self.current_epoch} Average Metrics:\n'
             for metric_name, metric_value in total_average_metrics.items():
                 log_str += f'\t # {metric_name}: {metric_value:.4f}\n'

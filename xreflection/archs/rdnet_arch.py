@@ -227,30 +227,30 @@ class RDNet(nn.Module):
         }
 
     def forward(self, x_in, prompt=True):
-        with torch.autocast(enabled=True, device_type='cuda'):
-            x_cls_out = []
-            x_img_out = []
-            c0, c1, c2, c3 = 0, 0, 0, 0
-            interval = self.num_subnet // 4
 
-            x_base, x_stem = self.baseball(x_in)
-            c0, c1, c2, c3 = x_base
-            x_stem = self.baseball_adapter[0](x_stem)
-            c0, c1, c2, c3 = self.baseball_adapter[1](c0), \
-                self.baseball_adapter[2](c1), \
-                self.baseball_adapter[3](c2), \
-                self.baseball_adapter[4](c3)
-            # x_in = x
-            with torch.no_grad():
-                self.classifier.eval()
-                prompt = self.classifier(x_in)
-            prompt = self.prompt(prompt)
-            x = prompt * x_stem
-            for i in range(self.num_subnet):
-                c0, c1, c2, c3 = getattr(self, f'subnet{str(i)}')(x, c0, c1, c2, c3)
-                if i > (self.num_subnet - self.Loss_col):
-                    x_img_out.append(torch.cat([x_in, x_in], dim=-3) - self.decoder_blocks(c3, c2, c1, c0))
-            return x_cls_out, x_img_out
+        x_cls_out = []
+        x_img_out = []
+        c0, c1, c2, c3 = 0, 0, 0, 0
+        interval = self.num_subnet // 4
+
+        x_base, x_stem = self.baseball(x_in)
+        c0, c1, c2, c3 = x_base
+        x_stem = self.baseball_adapter[0](x_stem)
+        c0, c1, c2, c3 = self.baseball_adapter[1](c0), \
+            self.baseball_adapter[2](c1), \
+            self.baseball_adapter[3](c2), \
+            self.baseball_adapter[4](c3)
+        # x_in = x
+        with torch.no_grad():
+            self.classifier.eval()
+            prompt = self.classifier(x_in)
+        prompt = self.prompt(prompt)
+        x = prompt * x_stem
+        for i in range(self.num_subnet):
+            c0, c1, c2, c3 = getattr(self, f'subnet{str(i)}')(x, c0, c1, c2, c3)
+            if i > (self.num_subnet - self.Loss_col):
+                x_img_out.append(torch.cat([x_in, x_in], dim=-3) - self.decoder_blocks(c3, c2, c1, c0))
+        return x_cls_out, x_img_out
 
     def _init_weights(self, module):
         if isinstance(module, nn.Conv2d):
