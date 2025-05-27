@@ -1,6 +1,7 @@
 import lightning as L
 import torch
 import os
+import re
 from os import path as osp
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -39,7 +40,6 @@ class BaseModel(L.LightningModule):
         self.val_dataset_names = {}
         self.top_psnr_epochs = []
         self.top_ssim_epochs = []
-        self.save_img_epochs = []
 
         # Flag to indicate if using EMA - will be set by EMACallback
         self.use_ema = False
@@ -311,6 +311,8 @@ class BaseModel(L.LightningModule):
             self.top_ssim_epochs.sort(key=lambda x: (x[0], x[1]), reverse=True)
             self.top_ssim_epochs = self.top_ssim_epochs[:1]
             rank_zero_info(f'\t # The Best Average SSIM: {self.top_ssim_epochs[0][0]:.4f} at Epoch {self.top_ssim_epochs[0][1]}\n')
+            
+            self._delete_images_not_in_top_psnr()
 
     def test_step(self, batch, batch_idx):
         """Test step.
@@ -405,9 +407,6 @@ class BaseModel(L.LightningModule):
     
     def _save_images(self, clean_img, reflection_img, img_name, dataset_name):
         try:
-        # 在测试过程中保存图像
-            if self.current_epoch not in self.save_img_epochs:
-                self.save_img_epochs.append(self.current_epoch)
             save_dir = osp.join(self.opt['path']['visualization'], dataset_name, img_name)
             os.makedirs(save_dir, exist_ok=True)
             if self.opt['val'].get('suffix'):
@@ -419,32 +418,38 @@ class BaseModel(L.LightningModule):
             # 保存图像
             imwrite(clean_img, save_clean_img_path)
             imwrite(reflection_img, save_reflection_img_path)
-            self._delete_images_not_in_top_psnr(img_name, dataset_name)
         except Exception as e:
             rank_zero_warn(f"Error saving validation images: {str(e)}")
     
-    def _delete_images_not_in_top_psnr(self, img_name, dataset_name):
+    def _delete_images_not_in_top_psnr(self):
         top_epochs_to_keep = [e for _, e in self.top_psnr_epochs]
-        save_dir = osp.join(self.opt['path']['visualization'], dataset_name, img_name)
-        if not osp.isdir(save_dir):
+        visualization_root_path = self.opt['path']['visualization']
+
+        if not osp.isdir(visualization_root_path):
+            rank_zero_warn(f"Visualization directory not found: {visualization_root_path}")
             return
-        for epoch in self.save_img_epochs:
-            if epoch == self.current_epoch:
-                continue
-            if epoch not in top_epochs_to_keep:
-                if self.opt['val'].get('suffix'):
-                    save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{self.opt["val"]["suffix"]}_epoch_{epoch}.png')
-                    save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{self.opt["val"]["suffix"]}_epoch_{epoch}.png')
-                else:
-                    save_clean_img_path = osp.join(save_dir, f'{img_name}_clean_{self.opt["name"]}_epoch_{epoch}.png')
-                    save_reflection_img_path = osp.join(save_dir, f'{img_name}_reflection_{self.opt["name"]}_epoch_{epoch}.png')
-                if osp.exists(save_clean_img_path):
-                    os.remove(save_clean_img_path)
-                else:
-                    raise FileNotFoundError(f'{save_clean_img_path} not found')
-                if osp.exists(save_reflection_img_path):
-                    os.remove(save_reflection_img_path)
-                else:
-                    raise FileNotFoundError(f'{save_reflection_img_path} not found')
-                if epoch in self.save_img_epochs:
-                    self.save_img_epochs.remove(epoch)
+
+        for root, _, files in os.walk(visualization_root_path):
+            for file_name in files:
+                # Optional: filter for common image file extensions
+                if not file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                    continue
+
+                file_path = osp.join(root, file_name)
+                if not osp.isfile(file_path): # Ensure it's a file before attempting to process/delete
+                    continue
+                
+                epoch_match = re.search(r'epoch_(\d+)', file_name)
+                if epoch_match:
+                    img_epoch = int(epoch_match.group(1))
+
+                    # Protect images from the current epoch and those explicitly in top_epochs_to_keep
+                    if img_epoch == self.current_epoch or img_epoch in top_epochs_to_keep:
+                        continue
+                    
+                    # If the epoch is not the current one and not in top_epochs_to_keep, delete it
+                    try:
+                        os.remove(file_path)
+                        # rank_zero_info(f"Deleted old image not in top PSNR epochs: {file_path}") # Optional: for verbose logging
+                    except Exception as e:
+                        rank_zero_warn(f"Error deleting image {file_path}: {str(e)}")
