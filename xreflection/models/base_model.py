@@ -36,6 +36,7 @@ class BaseModel(L.LightningModule):
         self.net_g = build_network(opt['network_g'])
 
         self.current_val_metrics = {}
+        self.val_dataset_names = {}
 
         # Flag to indicate if using EMA - will be set by EMACallback
         self.use_ema = False
@@ -46,7 +47,8 @@ class BaseModel(L.LightningModule):
         Args:
             stage (str, optional): 'fit', 'validate', 'test', or 'predict'
         """
-        self.print_network()
+        net_params = sum(map(lambda x: x.numel(), self.net_g.parameters()))
+        rank_zero_info(f'Network: {self.net_g.__class__.__name__}, with parameters: {net_params:,d}')
 
         # Load pretrained models
         load_path = self.opt['path'].get('pretrain_network_g', None)
@@ -55,15 +57,6 @@ class BaseModel(L.LightningModule):
 
         if stage == 'fit' or stage is None:
             self.setup_losses()
-        
-        # 初始化数据集名称映射
-        self.val_dataset_names = {}
-
-    @rank_zero_only
-    def print_network(self):
-        """Print network information"""
-        net_params = sum(map(lambda x: x.numel(), self.net_g.parameters()))
-        rank_zero_info(f'Network: {self.net_g.__class__.__name__}, with parameters: {net_params:,d}')
 
     def load_weights(self, load_path):
         """Load pretrained weights.
@@ -317,6 +310,14 @@ class BaseModel(L.LightningModule):
             dict: Output dict with clean and reflection images.
         """
         return self.validation_step(batch, batch_idx)
+    
+    def on_test_epoch_start(self):
+        """Operations at the start of test epoch."""
+        return self.on_validation_epoch_start()
+    
+    def on_test_epoch_end(self):
+        """Operations at the end of test epoch."""
+        return self.on_validation_epoch_end()
 
     def configure_optimizer_params(self):
         """Configure optimizer parameters.
