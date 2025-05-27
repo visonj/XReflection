@@ -330,8 +330,6 @@ class BaseModel(L.LightningModule):
         """Operations at the start of test epoch."""
         """Setup metrics collection at the start of test epoch."""
         self.current_val_metrics = {}
-        
-        # 获取验证数据集名称，用于后续记录和显示
         if hasattr(self, 'trainer') and hasattr(self.trainer, 'test_dataloaders'):
             if isinstance(self.trainer.test_dataloaders, list):
                 for idx, loader in enumerate(self.trainer.test_dataloaders):
