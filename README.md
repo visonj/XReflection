@@ -46,10 +46,10 @@ Please visit the [documentation](https://xreflection.readthedocs.io/en/latest/) 
 
 ### Requirements
 Make sure you have the following system dependencies installed:
-- Python >= 3.8
-- PyTorch >= 1.10
-- PyTorchLightning >= 1.5
-- CUDA >= 11.2 (for GPU support)
+- Python >= 3.10
+- PyTorch >= 2.5
+- PyTorchLightning >= 2.5
+- CUDA >= 12.1 (for GPU support)
 
 ### Installation Commands
 ```bash
@@ -59,6 +59,7 @@ cd XReflection
 
 # Install dependencies
 pip install -r requirements.txt
+python setup.py develop
 ```
 
 ---
@@ -68,9 +69,7 @@ pip install -r requirements.txt
 ### Inference with Pretrained Models
 Run reflection removal on an image:
 ```python
-from xreflection import inference
-
-result = inference.run("path_to_your_image.jpg", model_name="default_model")
+TODO
 ```
 
 ### Training a Model
@@ -79,10 +78,19 @@ python tools/train.py --config configs/train_config.yaml
 ```
 
 ### Data Preparation
-Generate synthetic reflection datasets:
-```bash
-python tools/data_pipeline.py --input_dir ./raw_images --output_dir ./synthetic_data
-```
+#### Training dataset
+* 7,643 images from the
+  [Pascal VOC dataset](http://host.robots.ox.ac.uk/pascal/VOC/), center-cropped as 224 x 224 slices to synthesize training pairs;
+* 90 real-world training pairs provided by [Zhang *et al.*](https://github.com/ceciliavision/perceptual-reflection-removal);
+* 200 real-world training pairs provided by [IBCLN](https://github.com/JHL-HUST/IBCLN) (In our training setting 2, &dagger; labeled in our paper).
+
+#### Testing dataset
+* 45 real-world testing images from [CEILNet dataset](https://github.com/fqnchina/CEILNet);
+* 20 real testing pairs provided by [Zhang *et al.*](https://github.com/ceciliavision/perceptual-reflection-removal);
+* 20 real testing pairs provided by [IBCLN](https://github.com/JHL-HUST/IBCLN);
+* 454 real testing pairs from [SIR^2 dataset](https://sir2data.github.io/), containing three subsets (i.e., Objects (200), Postcard (199), Wild (55)). 
+
+Download all in one by [Google Drive](https://drive.google.com/file/d/1hFZItZAzAt-LnfNj-2phBRwqplDUasQy/view?usp=sharing) or [百度云](https://pan.baidu.com/s/15zlk5o_-kx3ruKj4KfOvtA?pwd=1231).
 
 ---
 
@@ -90,10 +98,7 @@ python tools/data_pipeline.py --input_dir ./raw_images --output_dir ./synthetic_
 
 ### Pretrained Model Zoo
 Access pretrained models for various SIRR algorithms:
-| Model Name         | Description            | Performance Metrics |
-|--------------------|------------------------|---------------------|
-| Default Model      | General SIRR           | PSNR: 32.5, SSIM: 0.85 |
-| Enhanced Model     | Optimized structure    | PSNR: 34.3, SSIM: 0.88 |
+TODO
 
 
 <!-- ---
