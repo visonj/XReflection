@@ -1,7 +1,7 @@
 # XReflection - An Easy-to-use Toolbox for Single-image Reflection Removal
 
 
-<div align="center"><img src="./docs/logo/xreflection_logo3.png" alt="XReflection Logo"/></div>
+<div align="center"><img src="./docs/logo/test111.png" alt="XReflection Logo" width="200" height="100"/></div>
 
 ## <div align="center"><b><a href="README.md">English</a> | <a href="README_CN.md">简体中文</a></b></div>
 
