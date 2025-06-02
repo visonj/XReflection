@@ -19,7 +19,7 @@
 
 <br>
 
-XReflection is a neat toolbox tailored for single-image reflection removal(SIRR). We offer state-of-the-art SIRR solutions for training and inference, with a high-performance data pipeline, multi-GPU/TPU/NPU support, and more!
+XReflection is a neat toolbox tailored for single-image reflection removal(SIRR). We offer state-of-the-art SIRR solutions for training and inference, with a high-performance data pipeline, multi-GPU/TPU support, and more!
 
 
 ---
@@ -91,7 +91,7 @@ python tools/train.py --config configs/train_config.yaml
 * 20 real testing pairs provided by [IBCLN](https://github.com/JHL-HUST/IBCLN);
 * 454 real testing pairs from [SIR^2 dataset](https://sir2data.github.io/), containing three subsets (i.e., Objects (200), Postcard (199), Wild (55)). 
 
-Download all in one by [Google Drive](https://drive.google.com/file/d/1hFZItZAzAt-LnfNj-2phBRwqplDUasQy/view?usp=sharing) or [百度云](https://pan.baidu.com/s/15zlk5o_-kx3ruKj4KfOvtA?pwd=1231).
+Download all in one from https://checkpoints.mingjia.li/sirs.zip
 
 ---
 
