@@ -7,16 +7,6 @@
 ## <div align="center"><b><a href="README.md">English</a> | <a href="README_CN.md">简体中文</a></b></div>
 -->
 
-
-<div align="center">
-  <a href="https://img.shields.io/badge/platform-Linux%7CWindows%7CmacOS-blue"><img src="https://img.shields.io/badge/platform-Linux%7CWindows%7CmacOS-blue" alt="Platform" /></a>
-  <a href="https://img.shields.io/pypi/pyversions/mmcv"><img src="https://img.shields.io/pypi/pyversions/mmcv" alt="PyPI - Python Version" /></a>
-  <a href="https://pytorch.org/get-started/previous-versions/"><img src="https://img.shields.io/badge/pytorch-1.8~2.0-orange" alt="PyTorch" /></a>
-  <a href="https://developer.nvidia.com/cuda-downloads"><img src="https://img.shields.io/badge/cuda-10.1~11.8-green" alt="CUDA" /></a>
-  <a href="https://img.shields.io/pypi/v/mmcv"><img src="https://img.shields.io/pypi/v/mmcv" alt="PyPI" /></a>
-  <a href="https://img.shields.io/github/license/open-mmlab/mmcv.svg"><img src="https://img.shields.io/github/license/open-mmlab/mmcv.svg" alt="License" /></a>
-</div>
-
 <br>
 
 XReflection is a neat toolbox tailored for single-image reflection removal(SIRR). We offer state-of-the-art SIRR solutions for training and inference, with a high-performance data pipeline, multi-GPU/TPU support, and more!
