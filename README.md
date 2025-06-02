@@ -3,8 +3,9 @@
 
 <div align="center"><img src="./docs/logo/XReflection_logo.png" alt="XReflection Logo" width="50%" height="50%"/></div>
 
+<!-- ---
 ## <div align="center"><b><a href="README.md">English</a> | <a href="README_CN.md">简体中文</a></b></div>
-
+-->
 
 
 <div align="center">
@@ -122,11 +123,6 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE
 The authors would express gratitude to the computational resource support from Google's TPU Research Cloud.
 
 
----
-
-## 📧 Contact
-
-If you have any questions, please email **peiyuan_he@tju.edu.cn**
 
 
 
