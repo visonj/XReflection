@@ -33,11 +33,6 @@ source_suffix = {
     '.md': 'markdown',
 }
 
-master_doc = 'index'
-
-pygments_style = 'sphinx'
-
-
 # -- Options for HTML output
 
 # html_theme = 'sphinx_rtd_theme'
